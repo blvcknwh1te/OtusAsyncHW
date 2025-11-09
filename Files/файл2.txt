@@ -1,0 +1,126 @@
+Вложенные задачи
+Одна задача может запускать другую - вложенную задачу. При этом эти задачи выполняются независимо друг от друга. Например:
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+var outer = Task.Factory.StartNew(() =>      // внешняя задача
+{
+    Console.WriteLine("Outer task starting...");
+    var inner = Task.Factory.StartNew(() =>  // вложенная задача
+    {
+        Console.WriteLine("Inner task starting...");
+        Thread.Sleep(2000);
+        Console.WriteLine("Inner task finished.");
+    });
+});
+outer.Wait(); // ожидаем выполнения внешней задачи
+Console.WriteLine("End of Main");
+Несмотря на то, что здесь мы ожидаем выполнения внешней задачи, но вложенная задача может завершить выполнение даже после завершения метода Main:
+
+Outer task starting...
+End of Main
+При этом внутренняя задача может даже не начать свое выполнение к завершению работы основного потока программы. То есть в данном случае внешняя и вложенная задачи выполняются независимо друг от друга.
+
+Если необходимо, чтобы вложенная задача выполнялась как часть внешней, необходимо использовать значение TaskCreationOptions.AttachedToParent:
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+var outer = Task.Factory.StartNew(() =>      // внешняя задача
+{
+    Console.WriteLine("Outer task starting...");
+    var inner = Task.Factory.StartNew(() =>  // вложенная задача
+    {
+        Console.WriteLine("Inner task starting...");
+        Thread.Sleep(2000);
+        Console.WriteLine("Inner task finished.");
+    }, TaskCreationOptions.AttachedToParent);
+});
+outer.Wait(); // ожидаем выполнения внешней задачи
+Console.WriteLine("End of Main");
+Консольный вывод:
+
+Outer task starting...
+Inner task starting...
+Inner task finished.
+End of Main
+В данном случае вложенная задача прикреплена к внешней и выполняется как часть внешней задачи. И внешняя задача завершится только когда завершатся все прикрепленные к ней вложенные задачи.
+
+Массив задач
+Также как и с потоками, мы можем создать и запустить массив задач. Можно определить все задачи в массиве непосредственно через объект Task:
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+Task[] tasks1 = new Task[3]
+{
+    new Task(() => Console.WriteLine("First Task")),
+    new Task(() => Console.WriteLine("Second Task")),
+    new Task(() => Console.WriteLine("Third Task"))
+};
+// запуск задач в массиве
+foreach (var t in tasks1)
+    t.Start();
+Либо также можно использовать методы Task.Factory.StartNew или Task.Run и сразу запускать все задачи:
+
+1
+2
+3
+4
+Task[] tasks2 = new Task[3];
+int j = 1;
+for (int i = 0; i < tasks2.Length; i++)
+    tasks2[i] = Task.Factory.StartNew(() => Console.WriteLine($"Task {j++}"));
+Но в любом случае мы опять же можем столкнуться с тем, что все задачи из массива могут завершиться после того, как отработает метод Main, в котором запускаются эти задачи:
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+Task[] tasks = new Task[3];
+for(var i = 0; i < tasks.Length; i++)
+{
+    tasks[i] = new Task(() =>
+    {
+        Thread.Sleep(1000); // эмуляция долгой работы
+        Console.WriteLine($"Task{i} finished");
+    });
+    tasks[i].Start();   // запускаем задачу
+}
+Console.WriteLine("Завершение метода Main");
+Один из возможных консольных выводов программы:
+
+Завершение метода Main
+Если необходимо завершить выполнение программы или вообще выполнять некоторый код лишь после того, как все задачи из массива завершатся, то применяется метод Task.WaitAll(tasks):
